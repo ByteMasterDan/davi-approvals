@@ -313,12 +313,18 @@ function uploadDocuments(token, files) {
           fileName
         );
         const driveFile = dateFolder.createFile(blob);
-        driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
         const fileUrl = driveFile.getUrl();
         const auditId = Utilities.getUuid();
 
+        // Write audit log BEFORE setSharing (sharing may fail due to domain policy)
         logAuditWithId(auditId, session.email, 'UPLOADED', clientName, fileName, fileUrl, 'PENDING', 'Uploaded by ' + session.email);
+
+        // Attempt sharing (non-fatal if domain policy disallows it)
+        try {
+          driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        } catch (shareErr) {
+          Logger.log('setSharing failed: ' + shareErr.message);
+        }
 
         results.push({
           fileName,
@@ -833,6 +839,8 @@ function logAuditWithId(id, userEmail, action, clientName, fileName, fileUrl, st
       fileUrl,
       status,
       notes,
+      '',
+      '',
     ]);
   } catch (e) {
     Logger.log('logAuditWithId error: ' + e.message);
