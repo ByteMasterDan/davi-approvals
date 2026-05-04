@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Upload,
+  Settings,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -28,6 +29,7 @@ const routeIcons: Record<string, React.ReactNode> = {
   '/approvals': <CheckCircle className="h-5 w-5" />,
   '/users': <Users className="h-5 w-5" />,
   '/clients': <Building2 className="h-5 w-5" />,
+  '/settings': <Settings className="h-5 w-5" />,
 }
 
 interface SidebarProps {
@@ -37,8 +39,10 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ routes, currentRoute, onNavigate }: SidebarProps) {
-  const { user, logout } = useAuthStore()
-  const { sidebarCollapsed, toggleSidebar } = useUIStore()
+  const user = useAuthStore(s => s.user)
+  const logout = useAuthStore(s => s.logout)
+  const sidebarCollapsed = useUIStore(s => s.sidebarCollapsed)
+  const toggleSidebar = useUIStore(s => s.toggleSidebar)
 
   const handleLogout = () => {
     logout()
@@ -126,7 +130,7 @@ export default function Sidebar({ routes, currentRoute, onNavigate }: SidebarPro
           <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center' : ''}`}>
             <Avatar className="h-9 w-9 shrink-0">
               <AvatarFallback className="bg-primary/20 text-primary text-sm font-medium">
-                {user?.email?.charAt(0).toUpperCase() || 'U'}
+                {user?.displayName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
             <AnimatePresence mode="wait">

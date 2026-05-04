@@ -60,26 +60,26 @@ function apiCall(jsonString) {
         response.data = getSession(args.token);
         break;
 
-      // Users
-      case 'getUsers':
-        response.data = getUsers(args.token);
+      // Users (Advanced)
+      case 'getAllUsers':
+        response.data = getAllUsers(args.token);
         break;
-      case 'addUser':
-        response.data = addUser(args.token, args.name, args.email, args.role);
+      case 'createUser':
+        response.data = createUser(args.token, args.email, args.password, args.role, args.displayName);
         break;
       case 'updateUser':
-        response.data = updateUser(args.token, args.name, args.email, args.role, args.isActive);
+        response.data = updateUser(args.token, args.userId, args.updates);
         break;
 
-      // Clients
+      // Clients (Advanced)
       case 'getClients':
         response.data = getClients(args.token);
         break;
-      case 'addClient':
-        response.data = addClient(args.token, args.clientName, args.email);
+      case 'createClient':
+        response.data = createClient(args.token, args.clientData);
         break;
       case 'updateClient':
-        response.data = updateClient(args.token, args.clientName, args.email, args.isActive);
+        response.data = updateClient(args.token, args.clientName, args.clientData);
         break;
 
       // Documents
@@ -92,13 +92,24 @@ function apiCall(jsonString) {
         response.data = getPendingApprovals(args.token);
         break;
       case 'approveDocument':
-        response.data = approveDocument(args.token, args.auditId);
+        response.data = approveDocument(args.token, args.auditId, args.clientEmailOverride);
         break;
       case 'approveAllDocuments':
         response.data = approveAllDocuments(args.token, args.auditIds);
         break;
       case 'rejectDocument':
         response.data = rejectDocument(args.token, args.auditId, args.reason);
+        break;
+      case 'escalateDocument':
+        response.data = escalateDocument(args.token, args.auditId);
+        break;
+
+      // Settings
+      case 'getSettings':
+        response.data = getSettings(args.token);
+        break;
+      case 'updateSettings':
+        response.data = updateSettings(args.token, args.key, args.value);
         break;
 
       // Dashboard

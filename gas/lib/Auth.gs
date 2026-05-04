@@ -170,7 +170,10 @@ function hasRole(token, requiredRoles) {
     requiredRoles = [requiredRoles];
   }
 
-  return requiredRoles.includes(session.role);
+  const userRole = String(session.role || '').toLowerCase();
+  return requiredRoles.some(function(r) {
+    return String(r || '').toLowerCase() === userRole;
+  });
 }
 
 /**
@@ -215,7 +218,7 @@ function getAllUsers(token) {
     if (!session.authenticated) {
       return { success: false, error: session.error || 'Not authenticated' };
     }
-    if (!['Admin', 'SuperApprover'].includes(session.role)) {
+    if (!hasRole(token, ['Admin', 'SuperApprover'])) {
       return { success: false, error: 'Access denied - Admin or SuperApprover role required' };
     }
 

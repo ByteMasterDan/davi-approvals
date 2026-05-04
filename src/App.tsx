@@ -7,6 +7,7 @@ import Upload from './pages/Upload'
 import Approvals from './pages/Approvals'
 import UsersPage from './pages/UsersPage'
 import ClientsPage from './pages/ClientsPage'
+import Settings from './pages/Settings'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -18,16 +19,21 @@ const routes = [
   { path: '/approvals', label: 'Approvals', icon: 'CheckCircle' },
   { path: '/users', label: 'Users', icon: 'Users' },
   { path: '/clients', label: 'Clients', icon: 'Building2' },
+  { path: '/settings', label: 'Settings', icon: 'Settings' },
 ]
 
 const roleRoutes: Record<string, string[]> = {
-  admin: ['/dashboard', '/upload', '/approvals', '/users', '/clients'],
-  coordinator: ['/dashboard', '/approvals', '/users', '/clients'],
+  admin: ['/dashboard', '/upload', '/approvals', '/users', '/clients', '/settings'],
+  superapprover: ['/dashboard', '/upload', '/approvals', '/clients', '/users', '/settings'],
+  approver: ['/dashboard', '/upload', '/approvals', '/clients'],
   operator: ['/dashboard', '/upload'],
 }
 
 function AppContent() {
-  const { user, login, loading, setLoading } = useAuthStore()
+  const user = useAuthStore(s => s.user)
+  const login = useAuthStore(s => s.login)
+  const loading = useAuthStore(s => s.loading)
+  const setLoading = useAuthStore(s => s.setLoading)
   const [currentRoute, setCurrentRoute] = useState('/dashboard')
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null)
 
@@ -88,6 +94,7 @@ function AppContent() {
       case '/approvals': return <Approvals />
       case '/users': return <UsersPage />
       case '/clients': return <ClientsPage />
+      case '/settings': return <Settings />
       default: return <Dashboard />
     }
   }

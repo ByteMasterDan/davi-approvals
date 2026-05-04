@@ -19,25 +19,8 @@ export default function UploadPage() {
   const { user } = useAuthStore()
   const [files, setFiles] = useState<UploadFile[]>([])
   const [uploading, setUploading] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files
-    if (!fileList || fileList.length === 0) return
-
-    const newFiles: UploadFile[] = []
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i]
-      if (!file.name.toLowerCase().endsWith('.pdf')) {
-        toast.error(`${file.name} is not a PDF file`)
-        continue
-      }
-      const base64 = await readFileAsBase64(file)
-      newFiles.push({ file, name: file.name, base64, status: 'pending' })
-    }
-    setFiles(prev => [...prev, ...newFiles])
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
 
   const readFileAsBase64 = (file: File): Promise<string> => {
     return new Promise((resolve) => {
@@ -48,6 +31,36 @@ export default function UploadPage() {
       }
       reader.readAsDataURL(file)
     })
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files
+    if (!fileList || fileList.length === 0) return
+    await addFiles(Array.from(fileList))
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const addFiles = async (fileList: File[]) => {
+    const newFiles: UploadFile[] = []
+    for (const file of fileList) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        toast.error(`${file.name} is not a PDF file`)
+        continue
+      }
+      const base64 = await readFileAsBase64(file)
+      newFiles.push({ file, name: file.name, base64, status: 'pending' })
+    }
+    if (newFiles.length > 0) {
+      setFiles(prev => [...prev, ...newFiles])
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    const droppedFiles = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.pdf'))
+    if (droppedFiles.length === 0) return
+    await addFiles(droppedFiles)
   }
 
   const removeFile = (index: number) => {
@@ -79,6 +92,11 @@ export default function UploadPage() {
 
         if (successCount > 0) toast.success(`${successCount} document(s) uploaded successfully`)
         if (failCount > 0) toast.error(`${failCount} document(s) failed`)
+
+        // Auto-close after successful upload
+        if (failCount === 0) {
+          setTimeout(() => setFiles([]), 2000)
+        }
       } else {
         setFiles(prev => prev.map(f => ({ ...f, status: 'error', error: result?.error || 'Upload failed' })))
         toast.error(result?.error || 'Upload failed')
@@ -108,11 +126,26 @@ export default function UploadPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div
-            className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all"
-            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+              isDragOver
+                ? 'border-green-500 bg-green-50 dark:bg-green-950/20 scale-[1.02]'
+                : 'border-border hover:border-primary/50 hover:bg-muted/30'
+            }`}
+            onClick={() => !uploading && fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+            onDragEnter={(e) => { e.preventDefault(); setIsDragOver(true) }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={handleDrop}
           >
-            <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-1">Click or drag PDF files here</p>
+            <motion.div
+              animate={isDragOver ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            >
+              <Upload className={`h-10 w-10 mx-auto mb-3 ${isDragOver ? 'text-green-500' : 'text-muted-foreground'}`} />
+            </motion.div>
+            <p className="text-sm text-muted-foreground mb-1">
+              {isDragOver ? 'Drop PDF files here' : 'Click or drag PDF files here'}
+            </p>
             <p className="text-xs text-muted-foreground">File name should match client name (e.g., JUAN PEREZ.pdf)</p>
             <input
               ref={fileInputRef}
@@ -130,7 +163,7 @@ export default function UploadPage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="space-y-2"
+                className="space-y-2 overflow-hidden"
               >
                 {files.map((file, index) => (
                   <motion.div
@@ -142,7 +175,11 @@ export default function UploadPage() {
                   >
                     {file.status === 'pending' && <FileText className="h-5 w-5 text-muted-foreground shrink-0" />}
                     {file.status === 'uploading' && <Loader2 className="h-5 w-5 text-primary animate-spin shrink-0" />}
-                    {file.status === 'done' && <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />}
+                    {file.status === 'done' && (
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}>
+                        <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                      </motion.div>
+                    )}
                     {file.status === 'error' && <AlertCircle className="h-5 w-5 text-destructive shrink-0" />}
 
                     <div className="flex-1 min-w-0">

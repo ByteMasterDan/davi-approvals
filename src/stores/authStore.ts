@@ -36,11 +36,25 @@ export const useAuthStore = create<AuthState>()(
       loading: true,
 
       login: (token: string, userData) => {
+        // Normalize role to TitleCase for UI consistency
+        const normalizeRole = (role: string): string => {
+          if (!role) return 'Operator'
+          const lower = role.toLowerCase()
+          const map: Record<string, string> = {
+            admin: 'Admin',
+            superapprover: 'SuperApprover',
+            approver: 'Approver',
+            operator: 'Operator',
+            coordinator: 'Coordinator',
+          }
+          return map[lower] || role.charAt(0).toUpperCase() + role.slice(1)
+        }
+
         set({
           user: {
             authenticated: true,
             email: userData.email,
-            role: userData.role,
+            role: normalizeRole(userData.role),
             displayName: userData.displayName,
             skills: userData.skills || [],
             token,
