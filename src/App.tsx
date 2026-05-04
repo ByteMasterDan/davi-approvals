@@ -3,34 +3,28 @@ import { useAuthStore } from './stores/authStore'
 import { callGAS } from './components/AuthGate'
 import Sidebar from './components/layout/Sidebar'
 import Dashboard from './pages/Dashboard'
-import Flows from './pages/Flows'
-import FlowExecution from './pages/FlowExecution'
-import Clients from './pages/Clients'
-import AuditLog from './pages/AuditLog'
-import Users from './pages/Users'
-import Settings from './pages/Settings'
-import Documents from './pages/Documents'
-import MyForms from './pages/MyForms'
-import Employees from './pages/Employees'
-import FormFillPage from './pages/FormFillPage'
+import Upload from './pages/Upload'
+import Approvals from './pages/Approvals'
+import UsersPage from './pages/UsersPage'
+import ClientsPage from './pages/ClientsPage'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from 'sonner'
 
-// Mocking Route Type locally if needed, or assume Sidebar handles it if passed
 const routes = [
-  { path: '/dashboard', label: 'Dashboard', roles: ['Admin', 'SuperApprover', 'Approver', 'Operator'] },
-  { path: '/flows', label: 'Flows', roles: ['Admin', 'SuperApprover', 'Approver'] },
-  { path: '/my-forms', label: 'My Forms', roles: ['Admin', 'SuperApprover', 'Approver', 'Operator'] },
-  { path: '/execution', label: 'Approvals', roles: ['Admin', 'SuperApprover', 'Approver'] },
-  { path: '/documents', label: 'Documents', roles: ['Admin', 'SuperApprover', 'Operator'] },
-  { path: '/clients', label: 'Client Directory', roles: ['Admin', 'Operator'] },
-  { path: '/employees', label: 'Employee Directory', roles: ['Admin', 'Operator'] },
-  { path: '/audit', label: 'Audit Log', roles: ['Admin', 'SuperApprover'] },
-  { path: '/users', label: 'User Management', roles: ['Admin'] },
-  { path: '/settings', label: 'Settings', roles: ['Admin', 'SuperApprover', 'Approver', 'Operator'] },
+  { path: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
+  { path: '/upload', label: 'Upload', icon: 'Upload' },
+  { path: '/approvals', label: 'Approvals', icon: 'CheckCircle' },
+  { path: '/users', label: 'Users', icon: 'Users' },
+  { path: '/clients', label: 'Clients', icon: 'Building2' },
 ]
+
+const roleRoutes: Record<string, string[]> = {
+  admin: ['/dashboard', '/upload', '/approvals', '/users', '/clients'],
+  coordinator: ['/dashboard', '/approvals', '/users', '/clients'],
+  operator: ['/dashboard', '/upload'],
+}
 
 function AppContent() {
   const { user, login, loading, setLoading } = useAuthStore()
@@ -55,17 +49,6 @@ function AppContent() {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => {
-    if (user?.authenticated && user?.email && user?.role && user?.token) {
-      const hash = window.location.hash.slice(1)
-      if (hash === '/dashboard' || hash === '' || hash === '/') {
-        if (!['Admin', 'SuperApprover'].includes(user.role)) {
-          window.location.hash = '/my-forms'
-        }
-      }
-    }
-  }, [user?.authenticated, user?.role, user?.token])
-
   const navigateTo = (path: string) => {
     window.location.hash = path
   }
@@ -85,41 +68,41 @@ function AppContent() {
     return <Setup onComplete={() => setIsConfigured(true)} />
   }
 
-  if (!user?.authenticated || !user.email || !user.role || !user.displayName) {
+  if (!user?.authenticated) {
     return <Login onSuccess={(token, userData) => userData && login(token, userData)} />
   }
 
+  const userRole = user.role?.toLowerCase() || 'operator'
+  const allowedRoutes = roleRoutes[userRole] || roleRoutes.operator
+  const filteredRoutes = routes.filter(r => allowedRoutes.includes(r.path))
+
+  // Redirect to first allowed route if current not allowed
+  if (!allowedRoutes.includes(currentRoute)) {
+    window.location.hash = allowedRoutes[0]
+  }
+
   const renderPage = () => {
-    if (currentRoute.startsWith('/fill/')) return <FormFillPage />
     switch (currentRoute) {
       case '/dashboard': return <Dashboard />
-      case '/flows': return <Flows />
-      case '/my-forms': return <MyForms />
-      case '/execution': return <FlowExecution />
-      case '/documents': return <Documents />
-      case '/clients': return <Clients />
-      case '/employees': return <Employees />
-      case '/audit': return <AuditLog />
-      case '/users': return <Users />
-      case '/settings': return <Settings />
+      case '/upload': return <Upload />
+      case '/approvals': return <Approvals />
+      case '/users': return <UsersPage />
+      case '/clients': return <ClientsPage />
       default: return <Dashboard />
     }
   }
 
-  const getPageTitle = () => {
-    if (currentRoute.startsWith('/fill/')) return 'Fill Form'
-    const route = routes.find(r => r.path === currentRoute)
-    return route?.label || 'Approval System'
-  }
+  const route = routes.find(r => r.path === currentRoute)
+  const pageTitle = route?.label || 'Dashboard'
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar routes={routes} currentRoute={currentRoute} onNavigate={navigateTo} />
+      <Sidebar routes={filteredRoutes} currentRoute={currentRoute} onNavigate={navigateTo} />
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 bg-card border-b border-border flex items-center px-6 justify-between shrink-0">
-          <h1 className="text-lg font-semibold text-foreground">{getPageTitle()}</h1>
+          <h1 className="text-lg font-semibold text-foreground">{pageTitle}</h1>
           <div className="text-xs text-muted-foreground">
-            {user.displayName} ({user.role})
+            {user.email} ({user.role})
           </div>
         </header>
         <div className="flex-1 overflow-auto p-6">

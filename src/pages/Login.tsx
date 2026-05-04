@@ -10,25 +10,20 @@ import { gsap } from 'gsap'
 interface LoginResult {
   success: boolean
   token?: string
-  user?: {
-    email: string
-    role: string
-    displayName: string
-    skills: string[]
-  }
+  email?: string
+  role?: string
+  name?: string
   error?: string
 }
 
-export default function Login({ onSuccess }: { onSuccess: (token: string, user: LoginResult['user']) => void }) {
+export default function Login({ onSuccess }: { onSuccess: (token: string, user: { email: string; role: string; displayName: string; skills: string[] }) => void }) {
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const logoRef = useRef<HTMLDivElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -40,13 +35,6 @@ export default function Login({ onSuccess }: { onSuccess: (token: string, user: 
         { y: 50, opacity: 0 },
         { y: 0, opacity: 1, duration: 0.6, delay: 0.3, ease: 'power2.out' }
       )
-      gsap.to(buttonRef.current, {
-        boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)',
-        repeat: -1,
-        yoyo: true,
-        duration: 2,
-        ease: 'sine.inOut',
-      })
     })
     return () => ctx.revert()
   }, [])
@@ -56,44 +44,43 @@ export default function Login({ onSuccess }: { onSuccess: (token: string, user: 
     setLoading(true)
     setError(null)
 
-    if (buttonRef.current) {
-      gsap.to(buttonRef.current, { scale: 0.95, duration: 0.1 })
-    }
-
     try {
       const response = await callGAS<LoginResult>('login', {
         email: email.trim(),
-        password,
+        password: '',
       })
 
-      if (response.success && response.token && response.user) {
+      if (response.success && response.token) {
         if (containerRef.current) {
           gsap.to(containerRef.current, {
             y: -20,
             opacity: 0,
             duration: 0.3,
-            onComplete: () => onSuccess(response.token!, response.user!),
+            onComplete: () => onSuccess(response.token!, {
+              email: response.email || email,
+              role: response.role || 'operator',
+              displayName: response.name || email.split('@')[0],
+              skills: [],
+            }),
           })
         } else {
-          onSuccess(response.token, response.user)
+          onSuccess(response.token, {
+            email: response.email || email,
+            role: response.role || 'operator',
+            displayName: response.name || email.split('@')[0],
+            skills: [],
+          })
         }
       } else {
         setError(response.error || 'Login failed')
         if (formRef.current) {
-          gsap.to(formRef.current, {
-            x: [-10, 10, -10, 10, 0],
-            duration: 0.4,
-            ease: 'power2.out',
-          })
+          gsap.to(formRef.current, { x: [-10, 10, -10, 10, 0], duration: 0.4, ease: 'power2.out' })
         }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection error')
     } finally {
       setLoading(false)
-      if (buttonRef.current) {
-        gsap.to(buttonRef.current, { scale: 1, duration: 0.1 })
-      }
     }
   }
 
@@ -106,8 +93,8 @@ export default function Login({ onSuccess }: { onSuccess: (token: string, user: 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-foreground">G-Flow</h1>
-          <p className="text-muted-foreground text-sm mt-1">Approval System</p>
+          <h1 className="text-xl font-bold text-foreground">Davi Approvals</h1>
+          <p className="text-muted-foreground text-sm mt-1">Document Approval System</p>
         </div>
 
         <Card>
@@ -126,35 +113,17 @@ export default function Login({ onSuccess }: { onSuccess: (token: string, user: 
                   className="mt-1"
                 />
               </div>
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
-                  required
-                  className="mt-1"
-                />
-              </div>
               {error && (
                 <div className="bg-destructive/10 border border-destructive/30 text-destructive p-3 rounded-lg text-sm">
                   {error}
                 </div>
               )}
-              <Button type="submit" disabled={loading} className="w-full" ref={buttonRef}>
+              <Button type="submit" disabled={loading} className="w-full">
                 {loading ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>
           </CardContent>
         </Card>
-
-        <div className="mt-6 text-center">
-          <p className="text-xs text-muted-foreground">
-            Default: <code className="text-primary">admin@g-flow.local</code> / <code className="text-primary">admin123</code>
-          </p>
-        </div>
       </div>
     </div>
   )
