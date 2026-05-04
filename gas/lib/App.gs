@@ -34,6 +34,25 @@ function initDatabase() {
     }
   }
 
+  // Create default admin user if USERS sheet is empty
+  const usersSheet = ss.getSheetByName('USERS');
+  if (usersSheet && usersSheet.getLastRow() < 2) {
+    const adminId = Utilities.getUuid();
+    const adminHash = hashPassword('admin123');
+    usersSheet.appendRow([
+      adminId,
+      'admin@davi-approvals.com',
+      adminHash,
+      'admin',
+      'Administrator',
+      '',
+      new Date().toISOString(),
+      true,
+      '',
+      'Default admin user - change password!',
+    ]);
+  }
+
   return { success: true, message: 'Database initialized' };
 }
 
