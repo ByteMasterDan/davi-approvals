@@ -21,7 +21,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<UserData | null>(null)
-  const [formData, setFormData] = useState({ name: '', email: '', role: 'operator' })
+  const [formData, setFormData] = useState({ name: '', email: '', role: 'operator', password: '' })
   const [saving, setSaving] = useState(false)
 
   const userRole = user?.role?.toLowerCase() || 'operator'
@@ -46,6 +46,10 @@ export default function UsersPage() {
       toast.error('Name and email are required')
       return
     }
+    if (!editing && !formData.password.trim()) {
+      toast.error('Password is required for new users')
+      return
+    }
     setSaving(true)
     try {
       if (editing) {
@@ -53,13 +57,13 @@ export default function UsersPage() {
           token: user?.token, name: formData.name, email: formData.email, role: formData.role, isActive: editing.isActive,
         })
         if (result?.success) { toast.success('User updated'); setShowForm(false); setEditing(null); loadUsers() }
-        else toast.error('Update failed')
+        else toast.error(result?.error || 'Update failed')
       } else {
         const result = await callGAS<{ success: boolean }>('addUser', {
-          token: user?.token, name: formData.name, email: formData.email, role: formData.role,
+          token: user?.token, name: formData.name, email: formData.email, role: formData.role, password: formData.password,
         })
         if (result?.success) { toast.success('User added'); setShowForm(false); loadUsers() }
-        else toast.error('Add failed')
+        else toast.error(result?.error || 'Add failed')
       }
     } catch (e: any) {
       toast.error(e.message)
@@ -89,7 +93,7 @@ export default function UsersPage() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div />
-        <Button onClick={() => { setEditing(null); setFormData({ name: '', email: '', role: 'operator' }); setShowForm(true) }}>
+        <Button onClick={() => { setEditing(null); setFormData({ name: '', email: '', role: 'operator', password: '' }); setShowForm(true) }}>
           <Plus className="h-4 w-4 mr-2" /> Add User
         </Button>
       </div>
@@ -111,6 +115,12 @@ export default function UsersPage() {
               <label className="text-xs text-muted-foreground">Email</label>
               <input value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full h-9 text-sm border border-border rounded px-3 bg-background" placeholder="email@example.com" disabled={!!editing} />
             </div>
+            {!editing && (
+              <div>
+                <label className="text-xs text-muted-foreground">Password</label>
+                <input type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full h-9 text-sm border border-border rounded px-3 bg-background" placeholder="Enter password" />
+              </div>
+            )}
             <div>
               <label className="text-xs text-muted-foreground">Role</label>
               <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full h-9 text-sm border border-border rounded px-3 bg-background">

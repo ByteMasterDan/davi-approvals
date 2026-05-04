@@ -1,6 +1,8 @@
 /**
  * App.gs - Backend simplificado para davi-approvals
  * Gestión de usuarios, clientes, documentos y aprobaciones
+ * 
+ * NOTA: Las funciones de auth (login, getSession) están en Auth.gs
  */
 
 const DRIVE_FOLDER_ID = 'YOUR_DRIVE_FOLDER_ID_HERE';
@@ -12,7 +14,7 @@ function initDatabase() {
   const ss = CONFIG.getSpreadsheet();
 
   const sheets = {
-    'USERS': ['Name', 'Email', 'Role', 'IsActive', 'CreatedAt'],
+    'USERS': ['UserID', 'Email', 'PasswordHash', 'Role', 'DisplayName', 'Skills', 'CreatedAt', 'IsActive', 'LastLogin', 'Notes'],
     'CLIENTS': ['ClientName', 'Email', 'IsActive', 'CreatedAt'],
     'AUDIT_LOG': ['Id', 'Timestamp', 'UserEmail', 'Action', 'ClientName', 'FileName', 'FileUrl', 'Status', 'Notes'],
   };
@@ -36,69 +38,6 @@ function initDatabase() {
 }
 
 // ==========================================
-// AUTH
-// ==========================================
-function login(email, password) {
-  try {
-    const session = createSession(email);
-    return { success: true, token: session.token, email: session.email, role: session.role, name: session.name };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
-function getUserRole(email) {
-  const ss = CONFIG.getSpreadsheet();
-  const sheet = ss.getSheetByName('USERS');
-  if (!sheet || sheet.getLastRow() < 2) return 'admin';
-
-  const data = sheet.getDataRange().getValues();
-  const emailLower = email.toLowerCase().trim();
-
-  for (let i = 1; i < data.length; i++) {
-    const rowEmail = String(data[i][1] || '').toLowerCase().trim();
-    const isActive = data[i][3] === true || data[i][3] === 'TRUE';
-    if (rowEmail === emailLower && isActive) {
-      return String(data[i][2] || 'operator').toLowerCase();
-    }
-  }
-  return 'admin';
-}
-
-function createSession(email) {
-  const role = getUserRole(email);
-  const name = getUserName(email);
-  const token = Utilities.getUuid();
-  const cache = CacheService.getScriptCache();
-  cache.put(token, JSON.stringify({ email, role, name }), 21600);
-  return { token, email, role, name };
-}
-
-function getUserName(email) {
-  const ss = CONFIG.getSpreadsheet();
-  const sheet = ss.getSheetByName('USERS');
-  if (!sheet || sheet.getLastRow() < 2) return email.split('@')[0];
-
-  const data = sheet.getDataRange().getValues();
-  const emailLower = email.toLowerCase().trim();
-
-  for (let i = 1; i < data.length; i++) {
-    const rowEmail = String(data[i][1] || '').toLowerCase().trim();
-    if (rowEmail === emailLower) return data[i][0];
-  }
-  return email.split('@')[0];
-}
-
-function getSession(token) {
-  if (!token) return { authenticated: false };
-  const cache = CacheService.getScriptCache();
-  const data = cache.get(token);
-  if (!data) return { authenticated: false };
-  const session = JSON.parse(data);
-  return { authenticated: true, ...session };
-}
-
-// ==========================================
 // USERS CRUD
 // ==========================================
 function getUsers(token) {
@@ -116,11 +55,11 @@ function getUsers(token) {
     for (let i = 1; i < data.length; i++) {
       if (data[i][0]) {
         users.push({
-          name: data[i][0],
+          name: data[i][4] || data[i][1],
           email: data[i][1],
-          role: String(data[i][2] || 'operator').toLowerCase(),
-          isActive: data[i][3] === true || data[i][3] === 'TRUE',
-          createdAt: data[i][4],
+          role: String(data[i][3] || 'operator').toLowerCase(),
+          isActive: data[i][7] === true || data[i][7] === 'TRUE',
+          createdAt: data[i][6],
         });
       }
     }
@@ -131,13 +70,17 @@ function getUsers(token) {
   }
 }
 
-function addUser(token, name, email, role) {
+function addUser(token, name, email, role, password) {
   const session = getSession(token);
   if (!session.authenticated) return { success: false, error: 'Not authenticated' };
 
   // Coordinator can only add operators
   if (session.role === 'coordinator' && role !== 'operator') {
     return { success: false, error: 'Coordinators can only add operators' };
+  }
+
+  if (!password || password.length < 4) {
+    return { success: false, error: 'Password must be at least 4 characters' };
   }
 
   try {
@@ -153,7 +96,19 @@ function addUser(token, name, email, role) {
       }
     }
 
-    sheet.appendRow([name, email.toLowerCase(), role, true, new Date().toISOString()]);
+    const userId = Utilities.getUuid();
+    sheet.appendRow([
+      userId,
+      email.toLowerCase(),
+      hashPassword(password),
+      role,
+      name,
+      '',
+      new Date().toISOString(),
+      true,
+      '',
+      '',
+    ]);
     logAudit(session.email, 'USER_ADDED', '', '', '', '', 'Active', 'Added user: ' + name + ' (' + email + ')');
 
     return { success: true, message: 'User added' };
@@ -174,9 +129,9 @@ function updateUser(token, name, email, role, isActive) {
     const data = sheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][1] || '').toLowerCase().trim() === email.toLowerCase().trim()) {
-        sheet.getRange(i + 1, 1).setValue(name);
-        sheet.getRange(i + 1, 3).setValue(role);
-        sheet.getRange(i + 1, 4).setValue(isActive);
+        sheet.getRange(i + 1, 4).setValue(role);
+        sheet.getRange(i + 1, 5).setValue(name);
+        sheet.getRange(i + 1, 8).setValue(isActive);
         logAudit(session.email, 'USER_UPDATED', '', '', '', '', isActive ? 'Active' : 'Inactive', 'Updated user: ' + name);
         return { success: true, message: 'User updated' };
       }
@@ -231,7 +186,6 @@ function addClient(token, clientName, email) {
 
     const normalizedName = clientName.toUpperCase().trim();
 
-    // Check if client already exists
     const data = sheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][0] || '').toUpperCase().trim() === normalizedName) {
@@ -288,7 +242,6 @@ function uploadDocuments(token, files) {
     const datePrefix = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
     const rootFolder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
 
-    // Find or create date folder
     let dateFolder = null;
     const dateFolders = rootFolder.getFoldersByName(datePrefix);
     if (dateFolders.hasNext()) {
@@ -307,7 +260,6 @@ function uploadDocuments(token, files) {
       const clientName = fileName.replace(/\.pdf$/i, '').toUpperCase().trim();
 
       try {
-        // Upload to Drive
         const blob = Utilities.newBlob(
           Utilities.base64Decode(file.base64),
           file.mimeType || 'application/pdf',
@@ -319,7 +271,6 @@ function uploadDocuments(token, files) {
         const fileUrl = driveFile.getUrl();
         const auditId = Utilities.getUuid();
 
-        // Log to AUDIT_LOG
         logAuditWithId(auditId, session.email, 'UPLOADED', clientName, fileName, fileUrl, 'PENDING', 'Uploaded by ' + session.email);
 
         results.push({
@@ -377,10 +328,10 @@ function getCoordinators() {
   const coordinators = [];
 
   for (let i = 1; i < data.length; i++) {
-    const role = String(data[i][2] || '').toLowerCase();
-    const isActive = data[i][3] === true || data[i][3] === 'TRUE';
+    const role = String(data[i][3] || '').toLowerCase();
+    const isActive = data[i][7] === true || data[i][7] === 'TRUE';
     if (role === 'coordinator' && isActive) {
-      coordinators.push({ name: data[i][0], email: data[i][1] });
+      coordinators.push({ name: data[i][4], email: data[i][1] });
     }
   }
 
@@ -441,11 +392,9 @@ function approveDocument(token, auditId) {
         const fileName = String(data[i][5] || '');
         const fileUrl = String(data[i][6] || '');
 
-        // Update status
         sheet.getRange(i + 1, 8).setValue('APPROVED');
         sheet.getRange(i + 1, 9).setValue('Approved by ' + session.email);
 
-        // Find client email
         const client = findClient(clientName);
         let emailSent = false;
 
@@ -625,21 +574,18 @@ function getDashboard(token) {
     const ss = CONFIG.getSpreadsheet();
     const sheet = ss.getSheetByName('AUDIT_LOG');
     if (!sheet || sheet.getLastRow() < 2) {
-      return { success: true, stats: { uploaded: 0, pending: 0, approved: 0, rejected: 0, emailed: 0 } };
+      return { success: true, stats: { uploaded: 0, pending: 0, approved: 0, rejected: 0, emailed: 0 }, recent: [] };
     }
 
     const data = sheet.getDataRange().getValues();
-    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
 
-    let uploaded = 0, pending = 0, approved = 0, rejected = 0, emailed = 0;
+    let pending = 0, approved = 0, rejected = 0, emailed = 0;
     const recent = [];
 
     for (let i = 1; i < data.length; i++) {
       const status = String(data[i][7] || '').toUpperCase();
-      const timestamp = String(data[i][1] || '');
-      const isToday = timestamp.startsWith(today);
 
-      if (status === 'UPLOADED' || status === 'PENDING') pending++;
+      if (status === 'PENDING') pending++;
       if (status === 'APPROVED') approved++;
       if (status === 'REJECTED') rejected++;
       if (status === 'EMAIL_SENT') emailed++;
@@ -658,7 +604,7 @@ function getDashboard(token) {
 
     return {
       success: true,
-      stats: { uploaded, pending, approved, rejected, emailed },
+      stats: { uploaded: 0, pending, approved, rejected, emailed },
       recent: recent.reverse(),
     };
   } catch (e) {

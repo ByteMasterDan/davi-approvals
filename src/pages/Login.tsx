@@ -10,14 +10,18 @@ import { gsap } from 'gsap'
 interface LoginResult {
   success: boolean
   token?: string
-  email?: string
-  role?: string
-  name?: string
+  user?: {
+    email: string
+    role: string
+    displayName: string
+    skills: string[]
+  }
   error?: string
 }
 
 export default function Login({ onSuccess }: { onSuccess: (token: string, user: { email: string; role: string; displayName: string; skills: string[] }) => void }) {
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,29 +51,19 @@ export default function Login({ onSuccess }: { onSuccess: (token: string, user: 
     try {
       const response = await callGAS<LoginResult>('login', {
         email: email.trim(),
-        password: '',
+        password: password,
       })
 
-      if (response.success && response.token) {
+      if (response.success && response.token && response.user) {
         if (containerRef.current) {
           gsap.to(containerRef.current, {
             y: -20,
             opacity: 0,
             duration: 0.3,
-            onComplete: () => onSuccess(response.token!, {
-              email: response.email || email,
-              role: response.role || 'operator',
-              displayName: response.name || email.split('@')[0],
-              skills: [],
-            }),
+            onComplete: () => onSuccess(response.token!, response.user!),
           })
         } else {
-          onSuccess(response.token, {
-            email: response.email || email,
-            role: response.role || 'operator',
-            displayName: response.name || email.split('@')[0],
-            skills: [],
-          })
+          onSuccess(response.token, response.user)
         }
       } else {
         setError(response.error || 'Login failed')
@@ -110,6 +104,18 @@ export default function Login({ onSuccess }: { onSuccess: (token: string, user: 
                   placeholder="you@company.com"
                   required
                   autoFocus
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  required
                   className="mt-1"
                 />
               </div>
