@@ -44,6 +44,13 @@ function apiCall(jsonString) {
       case 'initDatabase':
         response.data = initDatabase();
         break;
+      case 'setupSystem':
+        response.data = setupSystem(args.spreadsheetId);
+        break;
+      case 'isSystemConfigured':
+        response.data = { configured: isSystemConfigured() };
+        response.success = true;
+        break;
 
       // Auth
       case 'login':
